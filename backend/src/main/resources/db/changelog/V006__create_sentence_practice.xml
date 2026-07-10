@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="V006-01-seq-sentence-practice" author="englishmemory">
+        <sql>
+            CREATE SEQUENCE SEQ_SENTENCE_PRACTICES
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE
+        </sql>
+        <rollback>DROP SEQUENCE SEQ_SENTENCE_PRACTICES</rollback>
+    </changeSet>
+
+    <!--
+        STUDY_SESSION_ID é nullable aqui.
+        A FK será adicionada em V007 após a tabela STUDY_SESSIONS ser criada.
+        SCORE: 0-100 representando qualidade da frase escrita pelo usuário.
+        AI_FEEDBACK e GRAMMAR_EXPLANATION: retorno da IA em texto livre (pode ser JSON).
+    -->
+    <changeSet id="V006-02-table-sentence-practice" author="englishmemory">
+        <sql>
+            CREATE TABLE SENTENCE_PRACTICES (
+                ID                      NUMBER          NOT NULL,
+                USER_ID                 NUMBER          NOT NULL,
+                VOCABULARY_WORD_ID      NUMBER,
+                STUDY_SESSION_ID        NUMBER,
+                ORIGINAL_SENTENCE       CLOB            NOT NULL,
+                CORRECTED_SENTENCE      CLOB,
+                AI_FEEDBACK             CLOB,
+                GRAMMAR_EXPLANATION     CLOB,
+                SUGGESTED_SENTENCES     CLOB,
+                NEW_VOCABULARY_FOUND    CLOB,
+                SCORE                   NUMBER(3)       DEFAULT 0,
+                CREATED_AT              TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT              TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE                  NUMBER(1)       DEFAULT 1 NOT NULL,
+                CONSTRAINT PK_SENTENCE_PRACTICES
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_SENTENCE_USER
+                    FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT FK_SENTENCE_VOCAB
+                    FOREIGN KEY (VOCABULARY_WORD_ID) REFERENCES VOCABULARY_WORDS (ID),
+                CONSTRAINT CK_SENTENCE_SCORE
+                    CHECK (SCORE BETWEEN 0 AND 100 OR SCORE IS NULL),
+                CONSTRAINT CK_SENTENCE_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE SENTENCE_PRACTICES</rollback>
+    </changeSet>
+
+    <changeSet id="V006-03-idx-sentence-practice" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_SENTENCE_USER_ID   ON SENTENCE_PRACTICES (USER_ID);
+            CREATE INDEX IDX_SENTENCE_VOCAB_ID  ON SENTENCE_PRACTICES (VOCABULARY_WORD_ID);
+            CREATE INDEX IDX_SENTENCE_SESSION   ON SENTENCE_PRACTICES (STUDY_SESSION_ID);
+            CREATE INDEX IDX_SENTENCE_SCORE     ON SENTENCE_PRACTICES (USER_ID, SCORE);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_SENTENCE_USER_ID;
+            DROP INDEX IDX_SENTENCE_VOCAB_ID;
+            DROP INDEX IDX_SENTENCE_SESSION;
+            DROP INDEX IDX_SENTENCE_SCORE;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

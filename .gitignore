@@ -1,0 +1,43 @@
+# Maven
+backend/target/
+backend/.mvn/
+!backend/.mvn/wrapper/maven-wrapper.jar
+!backend/.mvn/wrapper/maven-wrapper.properties
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDEs
+.idea/
+*.iml
+.vscode/settings.json
+*.class
+
+# Claude Code (local machine settings)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*-log.txt
+*-log*.txt
+*-log*.txt.err
+*-out.txt
+*-out.txt.err
+
+# Secrets
+.env
+.env.local
+application-prod.yml
+
+# JaCoCo
+backend/target/site/
+
+# Spring Boot
+backend/target/*.jar

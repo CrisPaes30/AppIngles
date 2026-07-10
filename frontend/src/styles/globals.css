@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth antialiased;
+  }
+
+  body {
+    @apply bg-surface text-slate-100 font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Scrollbar customizado */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+
+  /* Seleção de texto */
+  ::selection {
+    @apply bg-brand/30 text-white;
+  }
+}
+
+@layer components {
+  /* Focus ring consistente */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 focus-visible:ring-offset-surface;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-surface-card border border-border rounded-xl shadow-card;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-brand/30 hover:shadow-card-hover hover:bg-surface-elevated;
+  }
+
+  /* Mastery level bar */
+  .mastery-bar {
+    @apply h-1.5 rounded-full bg-slate-800 overflow-hidden;
+  }
+
+  /* Texto gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-light to-violet-400 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  /* Animação de entrada suave para páginas */
+  .page-enter {
+    @apply animate-fade-in;
+  }
+}
+
+/* Flip card 3D */
+.flip-card-inner {
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.flip-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card-face {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}

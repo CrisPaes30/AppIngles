@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <include file="db/changelog/V001__create_users.xml"/>
+    <include file="db/changelog/V002__create_categories.xml"/>
+    <include file="db/changelog/V003__create_vocabulary.xml"/>
+    <include file="db/changelog/V004__create_review_schedule.xml"/>
+    <include file="db/changelog/V005__create_exercise.xml"/>
+    <include file="db/changelog/V006__create_sentence_practice.xml"/>
+    <include file="db/changelog/V007__create_progress.xml"/>
+    <include file="db/changelog/V008__add_vocabulary_ai_fields.xml"/>
+
+</databaseChangeLog>

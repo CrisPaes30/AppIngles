@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="V004-01-seq-review-schedule" author="englishmemory">
+        <sql>
+            CREATE SEQUENCE SEQ_REVIEW_SCHEDULES
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE
+        </sql>
+        <rollback>DROP SEQUENCE SEQ_REVIEW_SCHEDULES</rollback>
+    </changeSet>
+
+    <!--
+        Algoritmo SM-2 (base do Anki):
+        - ease_factor:    facilidade de memorização (começa em 2.5, min 1.3)
+        - repetitions:    quantas vezes foi revisada com sucesso consecutivo
+        - interval_days:  intervalo atual em dias até a próxima revisão
+        - next_review_date: data calculada para a próxima revisão
+        - correct_count / incorrect_count: histórico total para métricas
+    -->
+    <changeSet id="V004-02-table-review-schedule" author="englishmemory">
+        <sql>
+            CREATE TABLE REVIEW_SCHEDULES (
+                ID                  NUMBER          NOT NULL,
+                VOCABULARY_WORD_ID  NUMBER          NOT NULL,
+                EASE_FACTOR         NUMBER(4,2)     DEFAULT 2.5     NOT NULL,
+                REPETITIONS         NUMBER          DEFAULT 0       NOT NULL,
+                INTERVAL_DAYS       NUMBER          DEFAULT 1       NOT NULL,
+                NEXT_REVIEW_DATE    DATE            DEFAULT SYSDATE NOT NULL,
+                LAST_REVIEWED_AT    TIMESTAMP,
+                CORRECT_COUNT       NUMBER          DEFAULT 0       NOT NULL,
+                INCORRECT_COUNT     NUMBER          DEFAULT 0       NOT NULL,
+                CREATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE              NUMBER(1)       DEFAULT 1       NOT NULL,
+                CONSTRAINT PK_REVIEW_SCHEDULES
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_REVIEW_VOCAB
+                    FOREIGN KEY (VOCABULARY_WORD_ID) REFERENCES VOCABULARY_WORDS (ID),
+                CONSTRAINT UQ_REVIEW_VOCAB
+                    UNIQUE (VOCABULARY_WORD_ID),
+                CONSTRAINT CK_REVIEW_EASE
+                    CHECK (EASE_FACTOR >= 1.3),
+                CONSTRAINT CK_REVIEW_REPETITIONS
+                    CHECK (REPETITIONS >= 0),
+                CONSTRAINT CK_REVIEW_INTERVAL
+                    CHECK (INTERVAL_DAYS >= 1),
+                CONSTRAINT CK_REVIEW_CORRECT
+                    CHECK (CORRECT_COUNT >= 0),
+                CONSTRAINT CK_REVIEW_INCORRECT
+                    CHECK (INCORRECT_COUNT >= 0),
+                CONSTRAINT CK_REVIEW_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE REVIEW_SCHEDULES</rollback>
+    </changeSet>
+
+    <!-- IDX_REVIEW_VOCAB_ID omitido: UQ_REVIEW_VOCAB ja cria indice implicito em VOCABULARY_WORD_ID -->
+    <changeSet id="V004-03-idx-review-schedule" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_REVIEW_NEXT_DATE       ON REVIEW_SCHEDULES (NEXT_REVIEW_DATE);
+            CREATE INDEX IDX_REVIEW_ACTIVE_DATE     ON REVIEW_SCHEDULES (ACTIVE, NEXT_REVIEW_DATE);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_REVIEW_NEXT_DATE;
+            DROP INDEX IDX_REVIEW_ACTIVE_DATE;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

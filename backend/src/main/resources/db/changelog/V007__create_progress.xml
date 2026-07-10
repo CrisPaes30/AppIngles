@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================================
+         STUDY_SESSIONS
+         Criada aqui porque EXERCISE_ATTEMPTS e SENTENCE_PRACTICES
+         referenciam esta tabela (FKs adicionadas abaixo).
+         ============================================================ -->
+
+    <changeSet id="V007-01-seq-study-sessions" author="englishmemory">
+        <sql>
+            CREATE SEQUENCE SEQ_STUDY_SESSIONS
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE;
+
+            CREATE SEQUENCE SEQ_PROGRESS
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE
+        </sql>
+        <rollback>
+            DROP SEQUENCE SEQ_STUDY_SESSIONS;
+            DROP SEQUENCE SEQ_PROGRESS
+        </rollback>
+    </changeSet>
+
+    <changeSet id="V007-02-table-study-sessions" author="englishmemory">
+        <sql>
+            CREATE TABLE STUDY_SESSIONS (
+                ID                      NUMBER          NOT NULL,
+                USER_ID                 NUMBER          NOT NULL,
+                SESSION_TYPE            VARCHAR2(20)    NOT NULL,
+                STARTED_AT              TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ENDED_AT                TIMESTAMP,
+                DURATION_MINUTES        NUMBER          DEFAULT 0,
+                WORDS_REVIEWED          NUMBER          DEFAULT 0 NOT NULL,
+                EXERCISES_COMPLETED     NUMBER          DEFAULT 0 NOT NULL,
+                CORRECT_ANSWERS         NUMBER          DEFAULT 0 NOT NULL,
+                INCORRECT_ANSWERS       NUMBER          DEFAULT 0 NOT NULL,
+                CREATED_AT              TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT              TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE                  NUMBER(1)       DEFAULT 1 NOT NULL,
+                CONSTRAINT PK_STUDY_SESSIONS
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_SESSION_USER
+                    FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT CK_SESSION_TYPE
+                    CHECK (SESSION_TYPE IN ('REVIEW','EXERCISE','CONVERSATION','READING','MIXED')),
+                CONSTRAINT CK_SESSION_DURATION
+                    CHECK (DURATION_MINUTES >= 0 OR DURATION_MINUTES IS NULL),
+                CONSTRAINT CK_SESSION_WORDS
+                    CHECK (WORDS_REVIEWED >= 0),
+                CONSTRAINT CK_SESSION_EXERCISES
+                    CHECK (EXERCISES_COMPLETED >= 0),
+                CONSTRAINT CK_SESSION_CORRECT
+                    CHECK (CORRECT_ANSWERS >= 0),
+                CONSTRAINT CK_SESSION_INCORRECT
+                    CHECK (INCORRECT_ANSWERS >= 0),
+                CONSTRAINT CK_SESSION_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE STUDY_SESSIONS</rollback>
+    </changeSet>
+
+    <!-- ============================================================
+         PROGRESS
+         Mastery por palavra: consolida histórico de revisões.
+         Alimentado por triggers de negócio no service layer.
+         ============================================================ -->
+
+    <changeSet id="V007-03-table-progress" author="englishmemory">
+        <sql>
+            CREATE TABLE PROGRESS (
+                ID                  NUMBER          NOT NULL,
+                USER_ID             NUMBER          NOT NULL,
+                VOCABULARY_WORD_ID  NUMBER          NOT NULL,
+                MASTERY_LEVEL       NUMBER(3)       DEFAULT 0   NOT NULL,
+                TOTAL_REVIEWS       NUMBER          DEFAULT 0   NOT NULL,
+                CORRECT_REVIEWS     NUMBER          DEFAULT 0   NOT NULL,
+                LAST_ACTIVITY_DATE  DATE            DEFAULT SYSDATE,
+                CREATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE              NUMBER(1)       DEFAULT 1 NOT NULL,
+                CONSTRAINT PK_PROGRESS
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_PROGRESS_USER
+                    FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT FK_PROGRESS_VOCAB
+                    FOREIGN KEY (VOCABULARY_WORD_ID) REFERENCES VOCABULARY_WORDS (ID),
+                CONSTRAINT UQ_PROGRESS_USER_VOCAB
+                    UNIQUE (USER_ID, VOCABULARY_WORD_ID),
+                CONSTRAINT CK_PROGRESS_MASTERY
+                    CHECK (MASTERY_LEVEL BETWEEN 0 AND 100),
+                CONSTRAINT CK_PROGRESS_TOTAL
+                    CHECK (TOTAL_REVIEWS >= 0),
+                CONSTRAINT CK_PROGRESS_CORRECT
+                    CHECK (CORRECT_REVIEWS >= 0),
+                CONSTRAINT CK_PROGRESS_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE PROGRESS</rollback>
+    </changeSet>
+
+    <!-- ============================================================
+         FKs DIFERIDAS: adicionadas aqui pois STUDY_SESSIONS
+         já existe neste ponto do changelog.
+         ============================================================ -->
+
+    <changeSet id="V007-04-fk-exercise-attempts-session" author="englishmemory">
+        <sql>
+            ALTER TABLE EXERCISE_ATTEMPTS
+                ADD CONSTRAINT FK_ATTEMPT_SESSION
+                    FOREIGN KEY (STUDY_SESSION_ID) REFERENCES STUDY_SESSIONS (ID)
+        </sql>
+        <rollback>
+            ALTER TABLE EXERCISE_ATTEMPTS DROP CONSTRAINT FK_ATTEMPT_SESSION
+        </rollback>
+    </changeSet>
+
+    <changeSet id="V007-05-fk-sentence-practice-session" author="englishmemory">
+        <sql>
+            ALTER TABLE SENTENCE_PRACTICES
+                ADD CONSTRAINT FK_SENTENCE_SESSION
+                    FOREIGN KEY (STUDY_SESSION_ID) REFERENCES STUDY_SESSIONS (ID)
+        </sql>
+        <rollback>
+            ALTER TABLE SENTENCE_PRACTICES DROP CONSTRAINT FK_SENTENCE_SESSION
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================================
+         ÍNDICES
+         ============================================================ -->
+
+    <changeSet id="V007-06-idx-study-sessions" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_SESSION_USER_ID    ON STUDY_SESSIONS (USER_ID);
+            CREATE INDEX IDX_SESSION_TYPE       ON STUDY_SESSIONS (USER_ID, SESSION_TYPE);
+            CREATE INDEX IDX_SESSION_STARTED    ON STUDY_SESSIONS (USER_ID, STARTED_AT);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_SESSION_USER_ID;
+            DROP INDEX IDX_SESSION_TYPE;
+            DROP INDEX IDX_SESSION_STARTED;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="V007-07-idx-progress" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_PROGRESS_USER_ID       ON PROGRESS (USER_ID);
+            CREATE INDEX IDX_PROGRESS_VOCAB_ID      ON PROGRESS (VOCABULARY_WORD_ID);
+            CREATE INDEX IDX_PROGRESS_MASTERY       ON PROGRESS (USER_ID, MASTERY_LEVEL);
+            CREATE INDEX IDX_PROGRESS_LAST_ACTIVITY ON PROGRESS (USER_ID, LAST_ACTIVITY_DATE);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_PROGRESS_USER_ID;
+            DROP INDEX IDX_PROGRESS_VOCAB_ID;
+            DROP INDEX IDX_PROGRESS_MASTERY;
+            DROP INDEX IDX_PROGRESS_LAST_ACTIVITY;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

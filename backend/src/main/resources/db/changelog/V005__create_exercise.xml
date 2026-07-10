@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="V005-01-seq-exercises" author="englishmemory">
+        <sql>
+            CREATE SEQUENCE SEQ_EXERCISES
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE;
+
+            CREATE SEQUENCE SEQ_EXERCISE_ATTEMPTS
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE
+        </sql>
+        <rollback>
+            DROP SEQUENCE SEQ_EXERCISES;
+            DROP SEQUENCE SEQ_EXERCISE_ATTEMPTS
+        </rollback>
+    </changeSet>
+
+    <!--
+        OPTIONS e CORRECT_ANSWER armazenam JSON.
+        Exemplos por tipo:
+          MULTIPLE_CHOICE: options = ["run","ran","running","runs"], correct_answer = "ran"
+          WORD_ORDER:      options = ["I","go","school","to"], correct_answer = "I go to school"
+          TRUE_FALSE:      options = ["TRUE","FALSE"], correct_answer = "TRUE"
+          FILL_BLANK:      options = null, correct_answer = "palavra esperada"
+    -->
+    <changeSet id="V005-02-table-exercises" author="englishmemory">
+        <sql>
+            CREATE TABLE EXERCISES (
+                ID                  NUMBER          NOT NULL,
+                USER_ID             NUMBER          NOT NULL,
+                VOCABULARY_WORD_ID  NUMBER,
+                TYPE                VARCHAR2(30)    NOT NULL,
+                QUESTION            CLOB            NOT NULL,
+                OPTIONS             CLOB,
+                CORRECT_ANSWER      CLOB            NOT NULL,
+                EXPLANATION         CLOB,
+                CREATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE              NUMBER(1)       DEFAULT 1 NOT NULL,
+                CONSTRAINT PK_EXERCISES
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_EXERCISE_USER
+                    FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT FK_EXERCISE_VOCAB
+                    FOREIGN KEY (VOCABULARY_WORD_ID) REFERENCES VOCABULARY_WORDS (ID),
+                CONSTRAINT CK_EXERCISE_TYPE
+                    CHECK (TYPE IN (
+                        'MULTIPLE_CHOICE','FILL_BLANK','WORD_ORDER',
+                        'TRANSLATION','TRUE_FALSE','SENTENCE_BUILDING'
+                    )),
+                CONSTRAINT CK_EXERCISES_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE EXERCISES</rollback>
+    </changeSet>
+
+    <!--
+        STUDY_SESSION_ID é nullable aqui.
+        A FK será adicionada em V007 após a tabela STUDY_SESSIONS ser criada.
+    -->
+    <changeSet id="V005-03-table-exercise-attempts" author="englishmemory">
+        <sql>
+            CREATE TABLE EXERCISE_ATTEMPTS (
+                ID                  NUMBER          NOT NULL,
+                EXERCISE_ID         NUMBER          NOT NULL,
+                USER_ID             NUMBER          NOT NULL,
+                STUDY_SESSION_ID    NUMBER,
+                USER_ANSWER         CLOB            NOT NULL,
+                IS_CORRECT          NUMBER(1)       NOT NULL,
+                TIME_SPENT_SECONDS  NUMBER          DEFAULT 0 NOT NULL,
+                CREATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT          TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE              NUMBER(1)       DEFAULT 1 NOT NULL,
+                CONSTRAINT PK_EXERCISE_ATTEMPTS
+                    PRIMARY KEY (ID),
+                CONSTRAINT FK_ATTEMPT_EXERCISE
+                    FOREIGN KEY (EXERCISE_ID) REFERENCES EXERCISES (ID),
+                CONSTRAINT FK_ATTEMPT_USER
+                    FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT CK_ATTEMPT_CORRECT
+                    CHECK (IS_CORRECT IN (0, 1)),
+                CONSTRAINT CK_ATTEMPT_TIME
+                    CHECK (TIME_SPENT_SECONDS >= 0),
+                CONSTRAINT CK_ATTEMPT_ACTIVE
+                    CHECK (ACTIVE IN (0, 1))
+            )
+        </sql>
+        <rollback>DROP TABLE EXERCISE_ATTEMPTS</rollback>
+    </changeSet>
+
+    <changeSet id="V005-04-idx-exercises" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_EXERCISE_USER_ID   ON EXERCISES (USER_ID);
+            CREATE INDEX IDX_EXERCISE_VOCAB_ID  ON EXERCISES (VOCABULARY_WORD_ID);
+            CREATE INDEX IDX_EXERCISE_TYPE      ON EXERCISES (USER_ID, TYPE);
+            CREATE INDEX IDX_ATTEMPT_EXERCISE   ON EXERCISE_ATTEMPTS (EXERCISE_ID);
+            CREATE INDEX IDX_ATTEMPT_USER       ON EXERCISE_ATTEMPTS (USER_ID);
+            CREATE INDEX IDX_ATTEMPT_SESSION    ON EXERCISE_ATTEMPTS (STUDY_SESSION_ID);
+            CREATE INDEX IDX_ATTEMPT_CORRECT    ON EXERCISE_ATTEMPTS (USER_ID, IS_CORRECT);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_EXERCISE_USER_ID;
+            DROP INDEX IDX_EXERCISE_VOCAB_ID;
+            DROP INDEX IDX_EXERCISE_TYPE;
+            DROP INDEX IDX_ATTEMPT_EXERCISE;
+            DROP INDEX IDX_ATTEMPT_USER;
+            DROP INDEX IDX_ATTEMPT_SESSION;
+            DROP INDEX IDX_ATTEMPT_CORRECT;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

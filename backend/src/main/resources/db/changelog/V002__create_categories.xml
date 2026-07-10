@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="V002-01-seq-categories" author="englishmemory">
+        <sql>
+            CREATE SEQUENCE SEQ_CATEGORIES
+                START WITH 1
+                INCREMENT BY 1
+                NOCACHE
+                NOCYCLE
+        </sql>
+        <rollback>DROP SEQUENCE SEQ_CATEGORIES</rollback>
+    </changeSet>
+
+    <changeSet id="V002-02-table-categories" author="englishmemory">
+        <sql>
+            CREATE TABLE CATEGORIES (
+                ID          NUMBER          NOT NULL,
+                USER_ID     NUMBER          NOT NULL,
+                NAME        VARCHAR2(100)   NOT NULL,
+                DESCRIPTION VARCHAR2(500),
+                COLOR       VARCHAR2(7)     DEFAULT '#6366F1',
+                ICON        VARCHAR2(50)    DEFAULT 'book',
+                CREATED_AT  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                UPDATED_AT  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+                ACTIVE      NUMBER(1)       DEFAULT 1       NOT NULL,
+                CONSTRAINT PK_CATEGORIES            PRIMARY KEY (ID),
+                CONSTRAINT FK_CATEGORIES_USER       FOREIGN KEY (USER_ID) REFERENCES USERS (ID),
+                CONSTRAINT UQ_CATEGORIES_USER_NAME  UNIQUE (USER_ID, NAME),
+                CONSTRAINT CK_CATEGORIES_ACTIVE     CHECK (ACTIVE IN (0, 1)),
+                CONSTRAINT CK_CATEGORIES_COLOR      CHECK (REGEXP_LIKE(COLOR, '^#[0-9A-Fa-f]{6}$'))
+            )
+        </sql>
+        <rollback>DROP TABLE CATEGORIES</rollback>
+    </changeSet>
+
+    <changeSet id="V002-03-idx-categories" author="englishmemory">
+        <sql>
+            CREATE INDEX IDX_CATEGORIES_USER_ID ON CATEGORIES (USER_ID);
+            CREATE INDEX IDX_CATEGORIES_ACTIVE  ON CATEGORIES (USER_ID, ACTIVE);
+        </sql>
+        <rollback>
+            DROP INDEX IDX_CATEGORIES_USER_ID;
+            DROP INDEX IDX_CATEGORIES_ACTIVE;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
