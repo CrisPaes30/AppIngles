@@ -10,6 +10,7 @@ import com.englishmemory.security.JwtUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,9 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtUtil        jwtUtil;
     private final RestTemplate   restTemplate;
+
+    @Value("${app.google.client-id}")
+    private String googleClientId;
 
     @PostMapping("/google")
     public ResponseEntity<ApiResponse<AuthResponse>> loginWithGoogle(
@@ -49,6 +53,18 @@ public class AuthController {
 
         if (!"true".equals(payload.get("email_verified"))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "E-mail Google não verificado");
+        }
+
+        // Sem checar o "aud", qualquer ID token Google válido (de qualquer app OAuth,
+        // não só o nosso) seria aceito aqui — a chamada ao tokeninfo só prova que o
+        // token é autêntico, não que foi emitido para ESTE aplicativo.
+        if (googleClientId == null || googleClientId.isBlank() || "configure-no-env".equals(googleClientId)) {
+            log.error("GOOGLE_CLIENT_ID não configurado — login Google recusado por segurança");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Login com Google não configurado");
+        }
+        if (!googleClientId.equals(payload.get("aud"))) {
+            log.warn("Token Google rejeitado: aud não corresponde ao client-id configurado");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token Google não pertence a este aplicativo");
         }
 
         String email = payload.get("email");

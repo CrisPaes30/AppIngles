@@ -1,0 +1,18 @@
+{$DUCKDNS_SUBDOMAIN}.duckdns.org {
+	# DNS-01 via DuckDNS: emite o certificado atualizando um registro TXT,
+	# sem depender de conexão de entrada nas portas 80/443 (que se mostrou
+	# instável a partir dos validadores globais do Let's Encrypt nesta rede).
+	tls {
+		dns duckdns {env.DUCKDNS_TOKEN}
+		# Pula a autodetecção de zona (que consulta os nameservers autoritativos
+		# do DuckDNS diretamente e falha de forma intermitente com SERVFAIL) —
+		# aponta a zona explicitamente, já que no DuckDNS cada subdomínio é
+		# independente, não uma zona delegada de verdade.
+		dns_challenge_override_domain {$DUCKDNS_SUBDOMAIN}.duckdns.org
+		# O resolver DNS embutido do Docker (127.0.0.11), que encaminha para o
+		# DNS local, se mostrou instável ao consultar os nameservers do
+		# DuckDNS. Usa resolvedores públicos diretamente.
+		resolvers 1.1.1.1 8.8.8.8
+	}
+	reverse_proxy backend:8080
+}

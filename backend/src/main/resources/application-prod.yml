@@ -1,0 +1,49 @@
+# Perfil de produção. Sem segredos aqui — tudo sensível vem de variáveis de
+# ambiente (ver docker-compose.yml / .env). Este arquivo é versionado no Git
+# de propósito: é configuração, não segredo.
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1 FROM DUAL
+  jpa:
+    show-sql: false
+  liquibase:
+    contexts: prod
+
+logging:
+  level:
+    root: INFO
+    com.englishmemory: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # "never" em prod: o healthcheck do Docker só precisa do status HTTP,
+      # não precisa expor detalhes internos (paths de disco, etc.) publicamente
+      # através do túnel Cloudflare.
+      show-details: never
+
+# API pública não deve expor documentação Swagger por padrão. Reative
+# manualmente (true/true) se for colocar atrás de Cloudflare Access ou outra
+# camada de autenticação, ou para depuração pontual.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

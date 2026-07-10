@@ -1,0 +1,133 @@
+name: homelab
+
+services:
+  oracle:
+    image: gvenzl/oracle-free:latest
+    container_name: oracle-homelab
+    hostname: oracle
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+      APP_USER: ${ORACLE_APP_USER}
+      APP_USER_PASSWORD: ${ORACLE_APP_PASSWORD}
+      TZ: ${TZ}
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./oracle/init:/container-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 10m
+    networks:
+      - homelab
+
+  java17:
+    image: maven:3.9-eclipse-temurin-17
+    container_name: java17-homelab
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["sh", "-c", "java -version && mvn -version && tail -f /dev/null"]
+    environment:
+      TZ: ${TZ}
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: ${ORACLE_APP_USER}
+      SPRING_DATASOURCE_PASSWORD: ${ORACLE_APP_PASSWORD}
+    volumes:
+      - ./workspace:/workspace
+      - maven_cache:/root/.m2
+    depends_on:
+      oracle:
+        condition: service_healthy
+    networks:
+      - homelab
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend-homelab
+    hostname: backend
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      AI_PROVIDER: ${AI_PROVIDER}
+      DICTIONARY_PROVIDER: ${DICTIONARY_PROVIDER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      oracle:
+        condition: service_healthy
+    networks:
+      - homelab
+    # Sem "ports": o backend não é exposto diretamente no host. O único
+    # caminho de entrada é o Caddy (serviço "caddy" abaixo), que alcança
+    # este container pelo nome "backend" na rede interna.
+
+  duckdns:
+    image: linuxserver/duckdns:latest
+    container_name: duckdns-homelab
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      SUBDOMAINS: ${DUCKDNS_SUBDOMAIN}
+      TOKEN: ${DUCKDNS_TOKEN}
+      # Atualiza o IP público no DuckDNS a cada 5 minutos — necessário porque
+      # provedores residenciais costumam trocar o IP periodicamente.
+      UPDATE_INTERVAL: "300"
+    networks:
+      - homelab
+
+  caddy:
+    build:
+      context: ./caddy
+    container_name: caddy-homelab
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      DUCKDNS_SUBDOMAIN: ${DUCKDNS_SUBDOMAIN}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN}
+    ports:
+      # Só a 443 precisa estar liberada no roteador — o certificado agora é
+      # emitido via DNS-01 (não depende de porta de entrada). A 80 fica
+      # opcional, só redireciona para HTTPS se estiver acessível.
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - homelab
+
+volumes:
+  oracle_data:
+    name: homelab_oracle_data
+  maven_cache:
+    name: homelab_maven_cache
+  caddy_data:
+    name: homelab_caddy_data
+  caddy_config:
+    name: homelab_caddy_config
+
+networks:
+  homelab:
+    name: homelab_network
+    driver: bridge
