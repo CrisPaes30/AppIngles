@@ -27,6 +27,8 @@ public interface VocabularyWordRepository extends JpaRepository<VocabularyWord, 
 
     Optional<VocabularyWord> findByIdAndUserIdAndActiveTrue(Long id, Long userId);
 
+    Optional<VocabularyWord> findByWordAndUserIdAndActiveFalse(String word, Long userId);
+
     boolean existsByWordAndUserIdAndActiveTrue(String word, Long userId);
 
     long countByUserIdAndActiveTrue(Long userId);

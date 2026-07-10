@@ -89,20 +89,21 @@ public class VocabularyServiceImpl implements VocabularyService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
-        VocabularyWord word = vocabularyMapper.toEntity(request);
-        word.setUser(user);
-
+        Category resolvedCategory = null;
         if (request.getCategoryId() != null) {
-            Category category = categoryRepository.findByIdAndUserIdAndActiveTrue(request.getCategoryId(), userId)
+            resolvedCategory = categoryRepository.findByIdAndUserIdAndActiveTrue(request.getCategoryId(), userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Categoria", request.getCategoryId()));
-            word.setCategory(category);
         }
+        final Category category = resolvedCategory;
 
-        VocabularyWord saved = vocabularyRepository.save(word);
-        log.info("Palavra '{}' criada para usuário {}", saved.getWord(), userId);
+        VocabularyWord saved = vocabularyRepository.findByWordAndUserIdAndActiveFalse(request.getWord(), userId)
+                .map(existing -> reactivateWord(existing, user, category, request))
+                .orElseGet(() -> createNewWord(request, user, category));
 
-        createInitialReviewSchedule(saved);
-        createInitialProgress(user, saved);
+        log.info("Palavra '{}' criada/reativada para usuário {}", saved.getWord(), userId);
+
+        createOrReactivateReviewSchedule(saved);
+        createOrReactivateProgress(user, saved);
 
         VocabularyResponse response = vocabularyMapper.toResponse(saved);
         reviewScheduleRepository.findByVocabularyWordIdAndActiveTrue(saved.getId())
@@ -185,6 +186,64 @@ public class VocabularyServiceImpl implements VocabularyService {
     private VocabularyWord findWordOrThrow(Long userId, Long id) {
         return vocabularyRepository.findByIdAndUserIdAndActiveTrue(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Palavra", id));
+    }
+
+    private VocabularyWord createNewWord(CreateVocabularyRequest request, User user, Category category) {
+        VocabularyWord word = vocabularyMapper.toEntity(request);
+        word.setUser(user);
+        word.setCategory(category);
+        return vocabularyRepository.save(word);
+    }
+
+    private VocabularyWord reactivateWord(VocabularyWord word, User user, Category category, CreateVocabularyRequest request) {
+        word.setUser(user);
+        word.setCategory(category);
+        word.setTranslation(request.getTranslation());
+        word.setPronunciation(request.getPronunciation());
+        word.setIpa(request.getIpa());
+        word.setPartOfSpeech(request.getPartOfSpeech());
+        word.setCefrLevel(request.getCefrLevel());
+        word.setDifficulty(request.getDifficulty() != null ? request.getDifficulty() : 3);
+        word.setMeaning(request.getMeaning());
+        word.setNotes(request.getNotes());
+        word.setPersonalMemory(request.getPersonalMemory());
+        word.setExamples(JsonListConverter.toJson(request.getExamples()));
+        word.setSynonyms(JsonListConverter.toJson(request.getSynonyms()));
+        word.setAntonyms(JsonListConverter.toJson(request.getAntonyms()));
+        word.setCollocations(JsonListConverter.toJson(request.getCollocations()));
+        word.setRelatedPhrasalVerbs(JsonListConverter.toJson(request.getRelatedPhrasalVerbs()));
+        word.setCommonErrors(JsonListConverter.toJson(request.getCommonErrors()));
+        word.setUsageTips(JsonListConverter.toJson(request.getUsageTips()));
+        word.setImageUrl(request.getImageUrl());
+        word.setAudioUrl(request.getAudioUrl());
+        word.setActive(true);
+        return vocabularyRepository.save(word);
+    }
+
+    private void createOrReactivateReviewSchedule(VocabularyWord word) {
+        reviewScheduleRepository.findByVocabularyWordId(word.getId())
+                .ifPresentOrElse(schedule -> {
+                    schedule.setEaseFactor(new BigDecimal("2.5"));
+                    schedule.setRepetitions(0);
+                    schedule.setIntervalDays(1);
+                    schedule.setNextReviewDate(LocalDate.now());
+                    schedule.setCorrectCount(0);
+                    schedule.setIncorrectCount(0);
+                    schedule.setActive(true);
+                    reviewScheduleRepository.save(schedule);
+                }, () -> createInitialReviewSchedule(word));
+    }
+
+    private void createOrReactivateProgress(User user, VocabularyWord word) {
+        progressRepository.findByUserIdAndVocabularyWordId(user.getId(), word.getId())
+                .ifPresentOrElse(progress -> {
+                    progress.setMasteryLevel(0);
+                    progress.setTotalReviews(0);
+                    progress.setCorrectReviews(0);
+                    progress.setLastActivityDate(LocalDate.now());
+                    progress.setActive(true);
+                    progressRepository.save(progress);
+                }, () -> createInitialProgress(user, word));
     }
 
     private void createInitialReviewSchedule(VocabularyWord word) {

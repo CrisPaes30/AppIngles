@@ -92,6 +92,37 @@ class VocabularyServiceTest {
     }
 
     @Test
+    @DisplayName("create — deve reativar palavra inativa (criar -> deletar -> criar de novo) sem lançar erro")
+    void create_shouldReactivateInactiveWordWithSameName() {
+        defaultUser.setId(USER_ID);
+        defaultWord.setId(10L);
+        defaultWord.setActive(false);
+
+        CreateVocabularyRequest request = new CreateVocabularyRequest();
+        request.setWord("run");
+        request.setTranslation("correr de novo");
+
+        when(vocabularyRepository.existsByWordAndUserIdAndActiveTrue("run", USER_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(defaultUser));
+        when(vocabularyRepository.findByWordAndUserIdAndActiveFalse("run", USER_ID))
+                .thenReturn(Optional.of(defaultWord));
+        when(vocabularyRepository.save(defaultWord)).thenReturn(defaultWord);
+        when(vocabularyMapper.toResponse(defaultWord)).thenReturn(new VocabularyResponse());
+        when(reviewScheduleRepository.findByVocabularyWordId(10L)).thenReturn(Optional.empty());
+        when(progressRepository.findByUserIdAndVocabularyWordId(USER_ID, 10L)).thenReturn(Optional.empty());
+        when(reviewScheduleRepository.findByVocabularyWordIdAndActiveTrue(10L)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> service.create(USER_ID, request)).doesNotThrowAnyException();
+
+        assertThat(defaultWord.getActive()).isTrue();
+        assertThat(defaultWord.getTranslation()).isEqualTo("correr de novo");
+        verify(vocabularyMapper, never()).toEntity(any());
+        verify(vocabularyRepository).save(defaultWord);
+        verify(reviewScheduleRepository, times(1)).save(any(ReviewSchedule.class));
+        verify(progressRepository, times(1)).save(any());
+    }
+
+    @Test
     @DisplayName("findById — deve lançar ResourceNotFoundException quando palavra não existe")
     void findById_shouldThrowWhenWordNotFound() {
         when(vocabularyRepository.findByIdAndUserIdAndActiveTrue(99L, USER_ID)).thenReturn(Optional.empty());
