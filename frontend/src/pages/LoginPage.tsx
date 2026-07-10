@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { buildErrorDiagnostic, isFirebaseAuthError, logClientError } from '@/services/clientLog.service'
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth()
@@ -31,12 +32,11 @@ export default function LoginPage() {
       success('Login realizado com sucesso!')
       navigate('/dashboard', { replace: true })
     } catch (e: unknown) {
-      const code = (e as any)?.code ?? ''
-      const msg = e instanceof Error ? e.message : String(e)
-      const full = code ? `[${code}] ${msg}` : msg
+      const full = buildErrorDiagnostic(e)
       localStorage.setItem('em_login_error', full)
       setErrorMsg(full)
       error(full || 'Falha no login')
+      logClientError(isFirebaseAuthError(e) ? 'login-popup' : 'login-api-call', full)
     } finally {
       setLoading(false)
     }

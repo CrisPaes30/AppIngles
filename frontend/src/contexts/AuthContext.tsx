@@ -5,6 +5,7 @@ import {
 } from 'firebase/auth'
 import { auth, googleProvider } from '@/config/firebase'
 import { authService } from '@/services/auth.service'
+import { buildErrorDiagnostic, isFirebaseAuthError, logClientError } from '@/services/clientLog.service'
 import type { AuthUser } from '@/types/auth'
 
 const TOKEN_KEY = 'em_token'
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const idToken = credential?.idToken
         if (!idToken) {
           localStorage.setItem('em_login_error', 'redirect: idToken ausente')
+          logClientError('login-redirect', 'redirect: idToken ausente')
           return
         }
         const res = await authService.loginWithGoogle(idToken)
@@ -57,9 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ userId: res.userId, name: res.name, email: res.email })
       })
       .catch((e: unknown) => {
-        const code = (e as any)?.code ?? ''
-        const msg = e instanceof Error ? e.message : String(e)
-        localStorage.setItem('em_login_error', `redirect-err [${code}]: ${msg}`)
+        const diagnostic = buildErrorDiagnostic(e)
+        localStorage.setItem('em_login_error', `redirect-err: ${diagnostic}`)
+        logClientError(isFirebaseAuthError(e) ? 'login-redirect' : 'login-api-call', `redirect-err: ${diagnostic}`)
       })
       .finally(() => setRedirectLoading(false))
   }, [])

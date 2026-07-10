@@ -22,12 +22,28 @@ api.interceptors.response.use(
       localStorage.removeItem(TOKEN_KEY)
       window.location.href = '/login'
     }
-    const message =
+    const apiMessage =
       error.response?.data?.message ??
       error.response?.data?.detail ??
-      error.response?.data?.errors?.[0] ??
-      'Erro inesperado. Tente novamente.'
-    return Promise.reject(new Error(message))
+      error.response?.data?.errors?.[0]
+
+    const rejected = new Error(apiMessage ?? 'Erro inesperado. Tente novamente.') as Error & {
+      diagnostic?: string
+    }
+
+    if (apiMessage == null) {
+      const requestSentNoResponse = !!error.request && !error.response
+      rejected.diagnostic = [
+        `errorCode=${error.code ?? 'unknown'}`,
+        `axiosMessage=${error.message ?? 'unknown'}`,
+        `httpStatus=${error.response?.status ?? 'none'}`,
+        `requestUrl=${error.config?.url ?? 'unknown'}`,
+        `baseURL=${error.config?.baseURL ?? 'unknown'}`,
+        `requestSentNoResponse(possible CORS/network)=${requestSentNoResponse}`,
+      ].join(' | ')
+    }
+
+    return Promise.reject(rejected)
   },
 )
 

@@ -33,6 +33,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/auth/**",
+                                "/client-log",
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/actuator/info",
