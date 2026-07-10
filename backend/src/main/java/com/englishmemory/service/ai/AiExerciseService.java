@@ -8,10 +8,8 @@ import com.englishmemory.service.ai.model.SentenceAnalysis;
 /**
  * Contrato da camada de IA.
  *
- * Implementações disponíveis (selecionadas via app.ai.provider):
- *   mock   → MockAiExerciseService   (MVP, sem chamada externa)
- *   openai → OpenAiExerciseService   (futuro)
- *   claude → ClaudeAiExerciseService (futuro)
+ * Implementação ativa (selecionada via app.ai.provider):
+ *   openai → OpenAiExerciseService
  *
  * As regras de negócio em ExerciseServiceImpl e SentenceServiceImpl
  * nunca dependem de qual provider está ativo.

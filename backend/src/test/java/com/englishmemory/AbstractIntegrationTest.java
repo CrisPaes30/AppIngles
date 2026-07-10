@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("dev")
 @Transactional
 @TestPropertySource(properties = {
-    "app.ai.provider=mock",
+    "app.ai.provider=openai",
     "logging.level.org.hibernate.SQL=DEBUG",
 })
 public abstract class AbstractIntegrationTest {

@@ -44,7 +44,7 @@ public class ExerciseController {
     @Operation(
             summary = "Gerar exercício",
             description = """
-                    Gera um exercício via IA (mock em DEV, real em PROD).
+                    Gera um exercício via IA (OpenAI).
 
                     - `vocabularyWordId`: opcional — se omitido, escolhe automaticamente a palavra com menor mastery
                     - `type`: opcional — se omitido, escolhe um tipo aleatório

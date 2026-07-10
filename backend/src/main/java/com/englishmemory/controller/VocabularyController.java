@@ -77,7 +77,7 @@ public class VocabularyController {
     }
 
     @PostMapping("/enrich")
-    @Operation(summary = "Enriquecer palavra com IA", description = "Consulta o provider de dicionário (OpenAI/mock) e retorna todos os detalhes da palavra sem salvar")
+    @Operation(summary = "Enriquecer palavra com IA", description = "Consulta o provider de dicionário (OpenAI) e retorna todos os detalhes da palavra sem salvar")
     public ResponseEntity<ApiResponse<WordDetails>> enrich(
             @Valid @RequestBody EnrichWordRequest request
     ) {
