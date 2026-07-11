@@ -16,3 +16,11 @@
 	}
 	reverse_proxy backend:8080
 }
+
+# Site interno em HTTP puro, sem certificado — usado pelo túnel (ngrok/Cloudflare
+# Tunnel), que já termina o TLS na borda antes de chegar aqui. Não é exposto ao
+# host (sem "ports" correspondente no docker-compose); só alcançável dentro da
+# rede Docker "homelab" pelo nome do serviço "caddy".
+:8090 {
+	reverse_proxy backend:8080
+}

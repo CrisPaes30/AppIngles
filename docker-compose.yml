@@ -117,6 +117,24 @@ services:
     networks:
       - homelab
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok-homelab
+    restart: unless-stopped
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    # Domínio estático reservado no dashboard do ngrok — não muda a cada
+    # restart, ao contrário da URL aleatória do plano free sem reserva.
+    command:
+      - http
+      - --url=https://${NGROK_STATIC_DOMAIN}
+      - caddy:8090
+    depends_on:
+      caddy:
+        condition: service_started
+    networks:
+      - homelab
+
 volumes:
   oracle_data:
     name: homelab_oracle_data
