@@ -70,7 +70,7 @@ AppIngles/
 | POST | /reviews/{wordId}/answer | Submeter resposta (quality 0-5) |
 | GET | /dashboard | Stats consolidados do usuário |
 | GET | /progress | Progresso por nível/categoria/palavra |
-| POST | /exercises/generate | Gerar exercício via AI (mock) |
+| POST | /exercises/generate | Gerar exercício via AI (OpenAI) |
 | POST | /exercises/{id}/answer | Responder exercício |
 | POST | /sentences/analyze | Analisar frase com AI |
 | GET | /actuator/health | Health check |
@@ -119,6 +119,8 @@ npm run dev
 ```
 
 URLs: Frontend → http://localhost:5173 | Backend → http://localhost:8080/api | Swagger → http://localhost:8080/api/swagger-ui.html
+
+Para ambiente de produção (Docker, ngrok, `.env`, providers de IA, bugs conhecidos), ver **`CLAUDE.md`**.
 
 ---
 
