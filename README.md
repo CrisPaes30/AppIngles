@@ -8,7 +8,7 @@ An intelligent English vocabulary learning platform with spaced repetition (SM-2
 |-----------|-----------------------------------------------------------------------------|
 | Backend   | Java 17, Spring Boot 3.2, Spring Data JPA, Spring Security, Liquibase      |
 | Database  | Oracle Database (XE 21c / XEPDB1)                                          |
-| AI Layer  | Pluggable interface — Mock (dev) / OpenAI / Claude / Gemini (prod)         |
+| AI Layer  | Pluggable interface (`AiExerciseService`) — only OpenAI implemented today  |
 | Frontend  | React 18, TypeScript, Vite 5, Tailwind CSS 3, TanStack Query, React Router |
 | Docs      | SpringDoc OpenAPI 2 (Swagger UI)                                            |
 | Quality   | JaCoCo, Checkstyle, Maven Surefire                                          |
@@ -64,7 +64,9 @@ Update `backend/src/main/resources/application-dev.yml` with your credentials.
 ```bash
 cd backend
 
-# Run with dev profile (Oracle local, mock AI, DataInitializer)
+# Run with dev profile (Oracle local, DataInitializer)
+# Requires OPENAI_API_KEY — there's no mock AI provider anymore, the app
+# won't start without it (fail-fast, see "AI Provider" below)
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
@@ -95,9 +97,13 @@ The Vite dev proxy forwards `/api/*` → `http://localhost:8080/api/*` (no CORS 
 npm run build         # output: frontend/dist/
 
 # Backend
-mvn clean package -Pnprod   # creates executable JAR
+mvn clean package -Dmaven.test.skip=true   # creates executable JAR
 java -jar target/english-memory-*.jar
 ```
+
+Real production deployment is Docker Compose based (backend + Oracle + Caddy + ngrok),
+not a bare `java -jar`. See **`CLAUDE.md`** for the actual prod setup, env vars and
+known infra gotchas — it's not derivable from the code alone.
 
 ## API Endpoints
 
@@ -131,19 +137,25 @@ Ease Factor minimum: 1.3 (never drops below).
 
 ## AI Provider
 
-The AI layer is fully decoupled via `AiExerciseService` interface:
+The AI layer is decoupled via the `AiExerciseService` / `DictionaryProvider` interfaces,
+but **OpenAI is the only implementation right now** — there used to be a `mock` provider
+for offline/no-cost development, but it was removed after it accidentally shipped active
+in production (users were getting fake `"(mock) ..."` responses). Without a valid
+`OPENAI_API_KEY` the app **won't start** — this is intentional fail-fast behavior, not a bug.
 
 ```yaml
-# application-dev.yml
+# application.yml
 app:
   ai:
-    provider: mock   # mock | openai | claude | gemini
+    provider: ${AI_PROVIDER:openai}   # only "openai" has a matching @Service today
+  dictionary:
+    provider: ${DICTIONARY_PROVIDER:openai}
 ```
 
-To add a new provider, implement `AiExerciseService` and annotate with:
+To add a new provider, implement `AiExerciseService` (or `DictionaryProvider`) and annotate with:
 ```java
 @Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
+@ConditionalOnProperty(name = "app.ai.provider", havingValue = "claude")  // e.g.
 ```
 
 ## Running Tests
@@ -229,7 +241,9 @@ Integration tests extend `AbstractIntegrationTest` — require Oracle connection
 | `DB_URL`                  | `jdbc:oracle:thin:@localhost:1521/XEPDB1` | JDBC URL              |
 | `DB_USERNAME`             | `englishmemory`                        | Database user            |
 | `DB_PASSWORD`             | —                                      | Database password        |
-| `APP_AI_PROVIDER`         | `mock`                                 | AI provider selection    |
+| `AI_PROVIDER`             | `openai`                               | Only `openai` has an implementation |
+| `DICTIONARY_PROVIDER`     | `openai`                               | Only `openai` has an implementation |
+| `OPENAI_API_KEY`          | —                                      | Required — app won't start without it |
 
 ## License
 
