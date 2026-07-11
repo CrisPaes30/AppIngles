@@ -4,12 +4,16 @@ const CLIENT_LOG_URL = `${import.meta.env.VITE_API_URL || '/api'}/client-log`
 
 export function logClientError(context: string, message: string): void {
   axios
-    .post(CLIENT_LOG_URL, {
-      context: context.slice(0, 100),
-      message: message.slice(0, 2000),
-      url: window.location.href.slice(0, 500),
-      userAgent: navigator.userAgent.slice(0, 300),
-    })
+    .post(
+      CLIENT_LOG_URL,
+      {
+        context: context.slice(0, 100),
+        message: message.slice(0, 2000),
+        url: window.location.href.slice(0, 500),
+        userAgent: navigator.userAgent.slice(0, 300),
+      },
+      { headers: { 'ngrok-skip-browser-warning': 'true' } },
+    )
     .catch(() => {})
 }
 

@@ -6,7 +6,13 @@ const TOKEN_KEY = 'em_token'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    // Pula a página de aviso HTML do ngrok free tier pra requisições de
+    // navegador — sem isso, o ngrok responde com HTML (sem CORS) em vez de
+    // encaminhar pro backend, e o axios reporta como "Network Error".
+    'ngrok-skip-browser-warning': 'true',
+  },
 })
 
 api.interceptors.request.use((config) => {
