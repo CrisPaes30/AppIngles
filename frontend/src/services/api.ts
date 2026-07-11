@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { ApiResponse } from '@/types/api'
+import { logClientError } from '@/services/clientLog.service'
 
 const TOKEN_KEY = 'em_token'
 
@@ -41,6 +42,13 @@ api.interceptors.response.use(
         `baseURL=${error.config?.baseURL ?? 'unknown'}`,
         `requestSentNoResponse(possible CORS/network)=${requestSentNoResponse}`,
       ].join(' | ')
+
+      // Chamada que nem chegou a responder (rede/CORS/bundle desatualizado) —
+      // reporta pro backend pra dar visibilidade sem depender do usuário
+      // descrever o problema.
+      if (!isAuthEndpoint) {
+        logClientError(`api-call:${error.config?.method ?? '?'}:${error.config?.url ?? '?'}`, rejected.diagnostic)
+      }
     }
 
     return Promise.reject(rejected)
