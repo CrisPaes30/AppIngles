@@ -35,6 +35,8 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class VocabularyServiceImpl implements VocabularyService {
 
+    private static final int WEAK_MASTERY_THRESHOLD = 40;
+
     private final VocabularyWordRepository vocabularyRepository;
     private final ReviewScheduleRepository reviewScheduleRepository;
     private final ProgressRepository progressRepository;
@@ -155,7 +157,7 @@ public class VocabularyServiceImpl implements VocabularyService {
     @Override
     public List<VocabularySummaryResponse> listWeak(Long userId) {
         return vocabularyRepository
-                .findWeakWordsByUserId(userId, PageRequest.of(0, 20))
+                .findGenuinelyWeakWordsByUserId(userId, WEAK_MASTERY_THRESHOLD, PageRequest.of(0, 20))
                 .stream()
                 .map(word -> toSummary(userId, word))
                 .toList();

@@ -1,9 +1,11 @@
 package com.englishmemory.service;
 
 import com.englishmemory.dto.request.AnswerExerciseRequest;
+import com.englishmemory.dto.request.GenerateExerciseRequest;
 import com.englishmemory.dto.response.ExerciseAnswerResponse;
 import com.englishmemory.entity.Exercise;
 import com.englishmemory.entity.User;
+import com.englishmemory.entity.VocabularyWord;
 import com.englishmemory.enums.ExerciseType;
 import com.englishmemory.repository.ExerciseAttemptRepository;
 import com.englishmemory.repository.ExerciseRepository;
@@ -11,6 +13,7 @@ import com.englishmemory.repository.ProgressRepository;
 import com.englishmemory.repository.UserRepository;
 import com.englishmemory.repository.VocabularyWordRepository;
 import com.englishmemory.service.ai.AiExerciseService;
+import com.englishmemory.service.ai.model.GeneratedExercise;
 import com.englishmemory.service.impl.ExerciseServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,11 +25,18 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,7 +61,7 @@ class ExerciseServiceTest {
         user.setId(1L);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(attemptRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(attemptRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private Exercise exerciseOfType(ExerciseType type, String correctAnswer) {
@@ -132,6 +142,40 @@ class ExerciseServiceTest {
             ExerciseAnswerResponse response = exerciseService.answer(1L, 100L, request);
 
             assertThat(response.getIsCorrect()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("generate — resolveWord (seleção automática de palavra)")
+    class ResolveWord {
+
+        @Test
+        @DisplayName("quando o pool de fracas está vazio, cai no pool geral sem lançar exceção")
+        void generate_fallsBackToGeneralPoolWhenWeakPoolIsEmpty() {
+            VocabularyWord word = new VocabularyWord();
+            word.setId(5L);
+            word.setWord("run");
+            word.setUser(user);
+
+            GenerateExerciseRequest request = new GenerateExerciseRequest();
+            request.setType(ExerciseType.FILL_BLANK);
+
+            lenient().when(vocabularyRepository.findGenuinelyWeakWordsByUserId(eq(1L), anyInt(), any()))
+                    .thenReturn(List.of());
+            when(vocabularyRepository.findAllByUserIdAndActiveTrue(eq(1L), any()))
+                    .thenReturn(new PageImpl<>(List.of(word)));
+
+            when(aiService.generateExercise(any(), any()))
+                    .thenReturn(new GeneratedExercise("q", null, "a", "expl"));
+            when(exerciseRepository.save(any())).thenAnswer(invocation -> {
+                Exercise ex = invocation.getArgument(0);
+                ex.setId(200L);
+                return ex;
+            });
+
+            assertThatCode(() -> exerciseService.generate(1L, request)).doesNotThrowAnyException();
+
+            verify(vocabularyRepository).findAllByUserIdAndActiveTrue(eq(1L), any());
         }
     }
 }

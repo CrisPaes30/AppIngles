@@ -55,6 +55,18 @@ public interface VocabularyWordRepository extends JpaRepository<VocabularyWord, 
     List<VocabularyWord> findWeakWordsByUserId(@Param("userId") Long userId, Pageable pageable);
 
     @Query("""
+            SELECT v FROM VocabularyWord v
+            JOIN Progress p ON p.vocabularyWord.id = v.id
+            WHERE v.user.id = :userId
+              AND v.active = true
+              AND p.masteryLevel < :threshold
+            ORDER BY p.masteryLevel ASC
+            """)
+    List<VocabularyWord> findGenuinelyWeakWordsByUserId(@Param("userId") Long userId,
+                                                         @Param("threshold") int threshold,
+                                                         Pageable pageable);
+
+    @Query("""
             SELECT COUNT(v) FROM VocabularyWord v
             WHERE v.user.id = :userId
               AND v.active = true

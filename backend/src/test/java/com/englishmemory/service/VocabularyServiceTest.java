@@ -2,6 +2,8 @@ package com.englishmemory.service;
 
 import com.englishmemory.dto.request.CreateVocabularyRequest;
 import com.englishmemory.dto.response.VocabularyResponse;
+import com.englishmemory.dto.response.VocabularySummaryResponse;
+import com.englishmemory.entity.Progress;
 import com.englishmemory.entity.ReviewSchedule;
 import com.englishmemory.entity.User;
 import com.englishmemory.entity.VocabularyWord;
@@ -19,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -148,5 +151,30 @@ class VocabularyServiceTest {
 
         assertThat(defaultWord.getActive()).isFalse();
         verify(vocabularyRepository).save(defaultWord);
+    }
+
+    @Test
+    @DisplayName("listWeak — deve usar threshold de mastery < 40 e retornar apenas palavras genuinamente fracas")
+    void listWeak_shouldUseGenuineWeakThreshold() {
+        VocabularyWord weakWord = new VocabularyWord();
+        weakWord.setId(1L);
+        weakWord.setWord("run");
+        weakWord.setUser(defaultUser);
+
+        when(vocabularyRepository.findGenuinelyWeakWordsByUserId(eq(USER_ID), eq(40), any()))
+                .thenReturn(List.of(weakWord));
+
+        Progress weakProgress = Progress.builder().masteryLevel(30).build();
+        when(progressRepository.findByUserIdAndVocabularyWordIdAndActiveTrue(USER_ID, 1L))
+                .thenReturn(Optional.of(weakProgress));
+        when(reviewScheduleRepository.findByVocabularyWordIdAndActiveTrue(1L))
+                .thenReturn(Optional.empty());
+
+        List<VocabularySummaryResponse> result = service.listWeak(USER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getMasteryLevel()).isEqualTo(30);
+        verify(vocabularyRepository).findGenuinelyWeakWordsByUserId(eq(USER_ID), eq(40), any());
+        verify(vocabularyRepository, never()).findWeakWordsByUserId(any(), any());
     }
 }

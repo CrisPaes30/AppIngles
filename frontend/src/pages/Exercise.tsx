@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle, XCircle, RotateCcw, Shuffle, ArrowRight,
-  Send, BookOpen, Search, AlertTriangle, Zap, X,
+  Send, BookOpen, Search, AlertTriangle, Zap, X, Clock, StopCircle,
 } from 'lucide-react'
 import { useGenerateExercise, useAnswerExercise, useAnalyzeSentence } from '@/hooks/useExercise'
 import { useVocabularyList } from '@/hooks/useVocabulary'
@@ -35,6 +35,21 @@ const TYPE_OPTIONS = [
   { value: '', label: 'Tipo aleatório' },
   ...Object.entries(EXERCISE_TYPE_LABELS).map(([value, label]) => ({ value, label })),
 ]
+
+// ─── Session duration options ─────────────────────────────────────────────────
+
+const DURATION_OPTIONS = [
+  { value: '5',  label: '5 minutos' },
+  { value: '10', label: '10 minutos' },
+  { value: '15', label: '15 minutos' },
+]
+
+function formatRemaining(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000))
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
 // ─── Multiple choice ──────────────────────────────────────────────────────────
 
@@ -265,8 +280,9 @@ function WordPicker({ selected, onSelect, onClear }: {
 
 // ─── Exercise engine (shared between random + word modes) ─────────────────────
 
-function ExerciseEngine({ wordId, wordName }: { wordId?: number; wordName?: string }) {
+function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; wordId?: number; wordName?: string }) {
   const toast = useToast()
+  const navigate = useNavigate()
   const [typeFilter,  setTypeFilter]  = useState<string>('')
   const [exercise,    setExercise]    = useState<Exercise | null>(null)
   const [answer,      setAnswer]      = useState<ExerciseAnswer | null>(null)
@@ -277,21 +293,81 @@ function ExerciseEngine({ wordId, wordName }: { wordId?: number; wordName?: stri
   const [woWords,     setWoWords]     = useState<string[]>([])
   const startTimeRef = useRef<number>(Date.now())
 
+  // Rotation batch (random mode only): keep the same word for 4 exercises in a row
+  const [batchWordId, setBatchWordId] = useState<number | null>(null)
+  const [batchCount,  setBatchCount]  = useState(0)
+
+  // Session (random + word modes): fixed duration, live stats, summary screen
+  const [durationChoice,  setDurationChoice]  = useState(10)
+  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null)
+  const [sessionDurationMs, setSessionDurationMs] = useState(10 * 60 * 1000)
+  const [stats, setStats] = useState({ total: 0, correct: 0 })
+  const [manuallyEnded, setManuallyEnded] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
   const generateMut = useGenerateExercise()
   const answerMut   = useAnswerExercise()
+
+  const remainingMs   = sessionStartedAt !== null ? Math.max(0, sessionDurationMs - (now - sessionStartedAt)) : sessionDurationMs
+  const timeUp        = sessionStartedAt !== null && remainingMs <= 0
+  const sessionEnded  = manuallyEnded || timeUp
+  const sessionActive = sessionStartedAt !== null && !sessionEnded
+  const phase: 'setup' | 'active' | 'summary' = sessionStartedAt === null ? 'setup' : sessionEnded ? 'summary' : 'active'
+
+  useEffect(() => {
+    if (!sessionActive) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [sessionActive])
 
   function resetState() {
     setAnswer(null); setTextInput(''); setMcSelected(null)
     setTfSelected(null); setWoSelected([]); startTimeRef.current = Date.now()
   }
 
+  function startSession() {
+    setSessionDurationMs(durationChoice * 60 * 1000)
+    setSessionStartedAt(Date.now())
+    setNow(Date.now())
+    setStats({ total: 0, correct: 0 })
+    setManuallyEnded(false)
+    setBatchWordId(null)
+    setBatchCount(0)
+    setExercise(null)
+    setAnswer(null)
+  }
+
+  function endSession() {
+    setManuallyEnded(true)
+  }
+
+  function newSession() {
+    setSessionStartedAt(null)
+    setStats({ total: 0, correct: 0 })
+    setManuallyEnded(false)
+    setBatchWordId(null)
+    setBatchCount(0)
+    setExercise(null)
+    setAnswer(null)
+  }
+
   async function generate() {
     resetState()
     try {
-      const ex = await generateMut.mutateAsync({
-        type: (typeFilter as ExerciseType) || undefined,
-        vocabularyWordId: wordId,
-      })
+      const type = (typeFilter as ExerciseType) || undefined
+      let ex: Exercise
+      if (mode === 'random') {
+        if (batchWordId == null || batchCount >= 4) {
+          ex = await generateMut.mutateAsync({ type })
+          setBatchWordId(ex.vocabularyWordId)
+          setBatchCount(1)
+        } else {
+          ex = await generateMut.mutateAsync({ type, vocabularyWordId: batchWordId })
+          setBatchCount((c) => c + 1)
+        }
+      } else {
+        ex = await generateMut.mutateAsync({ type, vocabularyWordId: wordId })
+      }
       setExercise(ex)
       if (ex.type === 'WORD_ORDER' && ex.options) {
         setWoWords([...ex.options].sort(() => Math.random() - 0.5))
@@ -310,12 +386,16 @@ function ExerciseEngine({ wordId, wordName }: { wordId?: number; wordName?: stri
         data: { answer: userAnswer.trim(), timeSpentSeconds: timeSpent },
       })
       setAnswer(result)
+      setStats((s) => ({ total: s.total + 1, correct: s.correct + (result.isCorrect ? 1 : 0) }))
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao registrar resposta.')
     }
   }
 
-  useEffect(() => { generate() }, [wordId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (sessionActive && !exercise && !generateMut.isPending) generate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionActive])
 
   const isAnswered    = answer !== null
   const correctAnswer = answer?.correctAnswer ?? null
@@ -368,8 +448,70 @@ function ExerciseEngine({ wordId, wordName }: { wordId?: number; wordName?: stri
     }
   }
 
+  const wordLabel = wordName && (
+    <div className="flex items-center gap-2 text-xs text-slate-500">
+      <BookOpen className="h-3.5 w-3.5" />
+      Praticando: <span className="font-mono text-slate-300">{wordName}</span>
+    </div>
+  )
+
+  if (phase === 'setup') {
+    return (
+      <div className="space-y-4">
+        {wordLabel}
+        <div className="card p-5 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-slate-200">Duração da sessão</p>
+            <p className="text-xs text-slate-500">Pratique por um tempo definido e veja seu resultado ao final.</p>
+          </div>
+          <Select options={DURATION_OPTIONS} value={String(durationChoice)}
+            onChange={(e) => setDurationChoice(Number(e.target.value))} />
+          <Button className="w-full" onClick={startSession}>
+            Começar sessão <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'summary') {
+    const pct = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0
+    const minutes = Math.round(sessionDurationMs / 60000)
+    return (
+      <div className="space-y-4">
+        {wordLabel}
+        <div className="card p-6 space-y-4 text-center animate-fade-in">
+          <p className="text-lg font-semibold text-slate-100">Sessão concluída!</p>
+          <p className="text-sm text-slate-400">
+            {stats.total} exercício{stats.total !== 1 ? 's' : ''}, {stats.correct} correto{stats.correct !== 1 ? 's' : ''} ({pct}%), {minutes}min
+          </p>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={newSession}>
+              <RotateCcw className="h-4 w-4" /> Nova sessão
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => navigate('/')}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {/* Session timer */}
+      <div className="flex items-center justify-between text-xs text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5" />
+          {formatRemaining(remainingMs)} restantes
+        </span>
+        <button onClick={endSession}
+          className="flex items-center gap-1 text-slate-500 hover:text-red-400 transition-colors">
+          <StopCircle className="h-3.5 w-3.5" /> Encerrar sessão
+        </button>
+      </div>
+
       {/* Controls */}
       <div className="flex gap-2">
         <div className="flex-1">
@@ -382,12 +524,7 @@ function ExerciseEngine({ wordId, wordName }: { wordId?: number; wordName?: stri
         </Button>
       </div>
 
-      {wordName && (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <BookOpen className="h-3.5 w-3.5" />
-          Praticando: <span className="font-mono text-slate-300">{wordName}</span>
-        </div>
-      )}
+      {wordLabel}
 
       {generateMut.isPending && (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -515,7 +652,7 @@ export function Exercise() {
       {mode === 'random' && (
         <div className="space-y-4">
           <WeakWordsBanner onPractice={handleWeakWordPractice} />
-          <ExerciseEngine />
+          <ExerciseEngine mode="random" />
         </div>
       )}
 
@@ -531,7 +668,7 @@ export function Exercise() {
             />
           </div>
           {practiceWordId && (
-            <ExerciseEngine key={practiceWordId} wordId={practiceWordId} wordName={practiceWordName} />
+            <ExerciseEngine key={practiceWordId} mode="word" wordId={practiceWordId} wordName={practiceWordName} />
           )}
           {!practiceWordId && (
             <div className="flex flex-col items-center gap-3 py-10 text-slate-500">

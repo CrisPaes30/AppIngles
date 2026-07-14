@@ -37,6 +37,8 @@ public class ExerciseServiceImpl implements ExerciseService {
 
     private static final EnumSet<ExerciseType> NO_CORRECT_ANSWER = EnumSet.of(ExerciseType.SENTENCE_BUILDING);
     private static final Random RANDOM = new Random();
+    private static final int WEAK_MASTERY_THRESHOLD = 40;
+    private static final double WEAK_POOL_PROBABILITY = 0.8;
 
     private final ExerciseRepository        exerciseRepository;
     private final ExerciseAttemptRepository attemptRepository;
@@ -128,15 +130,21 @@ public class ExerciseServiceImpl implements ExerciseService {
                     .orElseThrow(() -> new ResourceNotFoundException("Palavra", wordId));
         }
 
-        List<VocabularyWord> weakWords = vocabularyRepository.findWeakWordsByUserId(
-                userId, PageRequest.of(0, 10));
+        List<VocabularyWord> pool = RANDOM.nextDouble() < WEAK_POOL_PROBABILITY
+                ? vocabularyRepository.findGenuinelyWeakWordsByUserId(
+                        userId, WEAK_MASTERY_THRESHOLD, PageRequest.of(0, 10))
+                : List.of();
 
-        if (weakWords.isEmpty()) {
+        if (pool.isEmpty()) {
+            pool = vocabularyRepository.findAllByUserIdAndActiveTrue(userId, PageRequest.of(0, 10)).getContent();
+        }
+
+        if (pool.isEmpty()) {
             throw new BusinessException(
                     "Nenhuma palavra encontrada. Cadastre palavras para gerar exercícios.");
         }
 
-        return weakWords.get(RANDOM.nextInt(weakWords.size()));
+        return pool.get(RANDOM.nextInt(pool.size()));
     }
 
     private ExerciseType resolveType(ExerciseType requested) {
