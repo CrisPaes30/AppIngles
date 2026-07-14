@@ -13,5 +13,6 @@
     <include file="db/changelog/V006__create_sentence_practice.xml"/>
     <include file="db/changelog/V007__create_progress.xml"/>
     <include file="db/changelog/V008__add_vocabulary_ai_fields.xml"/>
+    <include file="db/changelog/V009__add_listening_exercise_type.xml"/>
 
 </databaseChangeLog>

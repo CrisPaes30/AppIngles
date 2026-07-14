@@ -54,9 +54,13 @@ app:
     provider: ${AI_PROVIDER:openai}
   dictionary:
     provider: ${DICTIONARY_PROVIDER:openai}
+  speech:
+    provider: ${SPEECH_PROVIDER:openai}
   openai:
     api-key: ${OPENAI_API_KEY:}
     model: gpt-4o-mini
+    tts-model: ${OPENAI_TTS_MODEL:tts-1}
+    tts-voice: ${OPENAI_TTS_VOICE:alloy}
   jwt:
     secret: ${JWT_SECRET:dev-secret-key-mude-em-producao-minimo-256bits-xpto}
     expiration-ms: 86400000

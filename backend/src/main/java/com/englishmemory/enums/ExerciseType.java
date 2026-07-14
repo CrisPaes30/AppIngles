@@ -11,7 +11,8 @@ public enum ExerciseType {
     WORD_ORDER("Ordenar Palavras"),
     TRANSLATION("Tradução"),
     TRUE_FALSE("Verdadeiro ou Falso"),
-    SENTENCE_BUILDING("Construção de Frases");
+    SENTENCE_BUILDING("Construção de Frases"),
+    LISTENING("Escuta");
 
     private final String description;
 }

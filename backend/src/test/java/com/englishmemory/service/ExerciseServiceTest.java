@@ -15,6 +15,7 @@ import com.englishmemory.repository.VocabularyWordRepository;
 import com.englishmemory.service.ai.AiExerciseService;
 import com.englishmemory.service.ai.model.GeneratedExercise;
 import com.englishmemory.service.impl.ExerciseServiceImpl;
+import com.englishmemory.service.speech.SpeechProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +51,7 @@ class ExerciseServiceTest {
     @Mock private ProgressRepository        progressRepository;
     @Mock private UserRepository            userRepository;
     @Mock private AiExerciseService         aiService;
+    @Mock private SpeechProvider            speechProvider;
 
     @InjectMocks private ExerciseServiceImpl exerciseService;
 
@@ -143,6 +146,19 @@ class ExerciseServiceTest {
 
             assertThat(response.getIsCorrect()).isTrue();
         }
+
+        @Test
+        @DisplayName("LISTENING (dictation) ignora pontuação e apóstrofo, igual FILL_BLANK")
+        void answer_listening_ignoresPunctuationAndApostrophe() {
+            exerciseOfType(ExerciseType.LISTENING, "I'm going to the store.");
+
+            AnswerExerciseRequest request = new AnswerExerciseRequest();
+            request.setAnswer("im going to the store");
+
+            ExerciseAnswerResponse response = exerciseService.answer(1L, 100L, request);
+
+            assertThat(response.getIsCorrect()).isTrue();
+        }
     }
 
     @Nested
@@ -176,6 +192,78 @@ class ExerciseServiceTest {
             assertThatCode(() -> exerciseService.generate(1L, request)).doesNotThrowAnyException();
 
             verify(vocabularyRepository).findAllByUserIdAndActiveTrue(eq(1L), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("generate — LISTENING (TTS)")
+    class Listening {
+
+        @Test
+        @DisplayName("chama o SpeechProvider e preenche audioDataUri com o áudio codificado em base64")
+        void generate_listening_callsSpeechProviderAndPopulatesAudioDataUri() {
+            VocabularyWord word = new VocabularyWord();
+            word.setId(5L);
+            word.setWord("store");
+            word.setUser(user);
+
+            GenerateExerciseRequest request = new GenerateExerciseRequest();
+            request.setType(ExerciseType.LISTENING);
+            request.setVocabularyWordId(5L);
+
+            when(vocabularyRepository.findByIdAndUserIdAndActiveTrue(5L, 1L))
+                    .thenReturn(Optional.of(word));
+
+            when(aiService.generateExercise(any(), any()))
+                    .thenReturn(new GeneratedExercise(
+                            "Ouça o áudio e escreva a frase que você ouviu.", null,
+                            "I'm going to the store.", "expl"));
+
+            when(exerciseRepository.save(any())).thenAnswer(invocation -> {
+                Exercise ex = invocation.getArgument(0);
+                ex.setId(300L);
+                return ex;
+            });
+
+            byte[] fakeAudio = new byte[] {10, 20, 30};
+            when(speechProvider.synthesizeSpeech("I'm going to the store.")).thenReturn(fakeAudio);
+
+            var response = exerciseService.generate(1L, request);
+
+            assertThat(response.getAudioDataUri()).startsWith("data:audio/mpeg;base64,");
+            String base64Part = response.getAudioDataUri()
+                    .substring("data:audio/mpeg;base64,".length());
+            assertThat(java.util.Base64.getDecoder().decode(base64Part)).isEqualTo(fakeAudio);
+        }
+
+        @Test
+        @DisplayName("outros tipos não chamam o SpeechProvider")
+        void generate_nonListeningType_doesNotCallSpeechProvider() {
+            VocabularyWord word = new VocabularyWord();
+            word.setId(5L);
+            word.setWord("store");
+            word.setUser(user);
+
+            GenerateExerciseRequest request = new GenerateExerciseRequest();
+            request.setType(ExerciseType.FILL_BLANK);
+            request.setVocabularyWordId(5L);
+
+            when(vocabularyRepository.findByIdAndUserIdAndActiveTrue(5L, 1L))
+                    .thenReturn(Optional.of(word));
+
+            when(aiService.generateExercise(any(), any()))
+                    .thenReturn(new GeneratedExercise("q", null, "store", "expl"));
+
+            when(exerciseRepository.save(any())).thenAnswer(invocation -> {
+                Exercise ex = invocation.getArgument(0);
+                ex.setId(301L);
+                return ex;
+            });
+
+            var response = exerciseService.generate(1L, request);
+
+            assertThat(response.getAudioDataUri()).isNull();
+            verify(speechProvider, never()).synthesizeSpeech(any());
         }
     }
 }

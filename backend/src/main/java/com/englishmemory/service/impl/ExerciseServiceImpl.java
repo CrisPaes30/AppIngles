@@ -13,6 +13,7 @@ import com.englishmemory.repository.*;
 import com.englishmemory.service.ExerciseService;
 import com.englishmemory.service.ai.AiExerciseService;
 import com.englishmemory.service.ai.model.GeneratedExercise;
+import com.englishmemory.service.speech.SpeechProvider;
 import com.englishmemory.util.JsonListConverter;
 import com.englishmemory.util.Sm2Algorithm;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
@@ -46,6 +48,7 @@ public class ExerciseServiceImpl implements ExerciseService {
     private final ProgressRepository        progressRepository;
     private final UserRepository            userRepository;
     private final AiExerciseService         aiService;
+    private final SpeechProvider            speechProvider;
 
     @Override
     @Transactional
@@ -73,7 +76,13 @@ public class ExerciseServiceImpl implements ExerciseService {
         Exercise saved = exerciseRepository.save(exercise);
         log.info("Exercício gerado: tipo={}, palavra='{}', usuário={}", type, word.getWord(), userId);
 
-        return toResponse(saved);
+        String audioDataUri = null;
+        if (type == ExerciseType.LISTENING) {
+            byte[] audio = speechProvider.synthesizeSpeech(saved.getCorrectAnswer());
+            audioDataUri = "data:audio/mpeg;base64," + Base64.getEncoder().encodeToString(audio);
+        }
+
+        return toResponse(saved, audioDataUri);
     }
 
     @Override
@@ -193,6 +202,10 @@ public class ExerciseServiceImpl implements ExerciseService {
     }
 
     private ExerciseResponse toResponse(Exercise exercise) {
+        return toResponse(exercise, null);
+    }
+
+    private ExerciseResponse toResponse(Exercise exercise, String audioDataUri) {
         return ExerciseResponse.builder()
                 .id(exercise.getId())
                 .type(exercise.getType())
@@ -200,6 +213,7 @@ public class ExerciseServiceImpl implements ExerciseService {
                 .options(JsonListConverter.fromJson(exercise.getOptions()))
                 .vocabularyWordId(exercise.getVocabularyWord() != null
                         ? exercise.getVocabularyWord().getId() : null)
+                .audioDataUri(audioDataUri)
                 .createdAt(exercise.getCreatedAt())
                 .build();
     }

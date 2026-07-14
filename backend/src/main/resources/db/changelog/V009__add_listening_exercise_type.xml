@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="V009-01-add-listening-type" author="englishmemory">
+        <sql>
+            ALTER TABLE EXERCISES DROP CONSTRAINT CK_EXERCISE_TYPE;
+            ALTER TABLE EXERCISES ADD CONSTRAINT CK_EXERCISE_TYPE
+                CHECK (TYPE IN ('MULTIPLE_CHOICE','FILL_BLANK','WORD_ORDER',
+                                'TRANSLATION','TRUE_FALSE','SENTENCE_BUILDING','LISTENING'))
+        </sql>
+        <rollback>
+            ALTER TABLE EXERCISES DROP CONSTRAINT CK_EXERCISE_TYPE;
+            ALTER TABLE EXERCISES ADD CONSTRAINT CK_EXERCISE_TYPE
+                CHECK (TYPE IN ('MULTIPLE_CHOICE','FILL_BLANK','WORD_ORDER',
+                                'TRANSLATION','TRUE_FALSE','SENTENCE_BUILDING'))
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

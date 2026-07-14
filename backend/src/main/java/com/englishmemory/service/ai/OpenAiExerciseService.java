@@ -58,6 +58,7 @@ public class OpenAiExerciseService implements AiExerciseService {
             - TRANSLATION: question (in Portuguese) asks to translate the Portuguese meaning to English, options is null, correctAnswer is the English word/phrase.
             - TRUE_FALSE: question is a complete statement ENTIRELY IN ENGLISH about the word — sometimes true, sometimes false (vary randomly), options is ["TRUE","FALSE"], correctAnswer is "TRUE" or "FALSE".
             - SENTENCE_BUILDING: question instructs (in Portuguese) to write an English sentence using the word, options is null, correctAnswer is null, explanation gives a good example sentence.
+            - LISTENING: question is a brief instruction in Portuguese (e.g. "Ouça o áudio e escreva a frase que você ouviu (em inglês)"), options is null, correctAnswer is a complete, natural English sentence using the target word (6-12 words, no ambiguous abbreviations when spoken aloud — this sentence will be synthesized into audio).
 
             Always write "explanation" in Brazilian Portuguese, regardless of exercise type.
             """;

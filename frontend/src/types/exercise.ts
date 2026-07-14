@@ -5,6 +5,7 @@ export type ExerciseType =
   | 'TRANSLATION'
   | 'TRUE_FALSE'
   | 'SENTENCE_BUILDING'
+  | 'LISTENING'
 
 export const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
   MULTIPLE_CHOICE:   'Múltipla Escolha',
@@ -13,6 +14,7 @@ export const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
   TRANSLATION:       'Tradução',
   TRUE_FALSE:        'Verdadeiro ou Falso',
   SENTENCE_BUILDING: 'Construção de Frase',
+  LISTENING:         'Escuta',
 }
 
 export interface Exercise {
@@ -21,6 +23,7 @@ export interface Exercise {
   question: string
   options: string[] | null
   vocabularyWordId: number | null
+  audioDataUri: string | null
   createdAt: string
 }
 

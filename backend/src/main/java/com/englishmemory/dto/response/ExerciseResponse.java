@@ -16,5 +16,6 @@ public class ExerciseResponse {
     private String       question;
     private List<String> options;
     private Long         vocabularyWordId;
+    private String       audioDataUri;
     private LocalDateTime createdAt;
 }

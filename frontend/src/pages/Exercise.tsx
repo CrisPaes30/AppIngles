@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle, XCircle, RotateCcw, Shuffle, ArrowRight,
-  Send, BookOpen, Search, AlertTriangle, Zap, X, Clock, StopCircle,
+  Send, BookOpen, Search, AlertTriangle, Zap, X, Clock, StopCircle, Volume2,
 } from 'lucide-react'
 import { useGenerateExercise, useAnswerExercise, useAnalyzeSentence } from '@/hooks/useExercise'
 import { useVocabularyList } from '@/hooks/useVocabulary'
@@ -141,6 +141,22 @@ function TrueFalse({ selected, answered, correct, onSelect }: {
     <div className="flex gap-4">
       {btn('True',  'Verdadeiro', 'emerald')}
       {btn('False', 'Falso',      'red')}
+    </div>
+  )
+}
+
+// ─── Listening player ─────────────────────────────────────────────────────────
+
+function ListeningPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  return (
+    <div className="rounded-lg border border-border bg-surface-elevated p-3 space-y-2">
+      <audio ref={audioRef} controls autoPlay src={src} className="w-full" />
+      <button onClick={() => audioRef.current?.play()}
+        className="flex items-center gap-1.5 text-sm text-brand-light hover:text-brand transition-colors">
+        <Volume2 className="h-4 w-4" /> Ouvir de novo
+      </button>
     </div>
   )
 }
@@ -442,6 +458,26 @@ function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; w
                 Confirmar ordem
               </Button>
             )}
+          </div>
+        )
+      case 'LISTENING':
+        return (
+          <div className="space-y-3">
+            {exercise.audioDataUri && <ListeningPlayer src={exercise.audioDataUri} />}
+            <div className="space-y-2">
+              <textarea value={textInput} onChange={(e) => setTextInput(e.target.value)}
+                disabled={isAnswered}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isAnswered) { e.preventDefault(); submit(textInput) } }}
+                rows={3} placeholder="Digite o que você ouviu..."
+                className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus-ring resize-none disabled:opacity-50"
+              />
+              {!isAnswered && (
+                <Button className="w-full" disabled={!textInput.trim()}
+                  onClick={() => submit(textInput)} loading={answerMut.isPending}>
+                  <Send className="h-4 w-4" /> Responder
+                </Button>
+              )}
+            </div>
           </div>
         )
       default:
