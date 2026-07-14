@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +97,16 @@ public class OpenAiExerciseService implements AiExerciseService {
                     ? node.path("correctAnswer").asText(null) : null;
             List<String> options = parseStringArray(node.path("options"));
 
+            if (type == ExerciseType.WORD_ORDER && correctAnswer != null) {
+                // O modelo às vezes devolve "options" que não são as palavras
+                // individuais de correctAnswer (ex: frases inteiras já montadas,
+                // ou um conjunto que não reconstrói a frase certa) — tornando o
+                // exercício impossível de acertar. Em vez de confiar no que o
+                // modelo mandou, derivamos os tiles direto da resposta correta,
+                // garantindo que ela sempre seja alcançável.
+                options = wordOrderTilesFrom(correctAnswer);
+            }
+
             return new GeneratedExercise(question, options, correctAnswer, explanation);
 
         } catch (Exception e) {
@@ -163,6 +175,12 @@ public class OpenAiExerciseService implements AiExerciseService {
         List<String> result = new ArrayList<>();
         node.forEach(n -> result.add(n.asText()));
         return result.isEmpty() ? null : result;
+    }
+
+    private List<String> wordOrderTilesFrom(String correctAnswer) {
+        List<String> words = new ArrayList<>(Arrays.asList(correctAnswer.trim().split("\\s+")));
+        Collections.shuffle(words);
+        return words;
     }
 
     private GeneratedExercise fallback(VocabularyWord word, ExerciseType type) {
