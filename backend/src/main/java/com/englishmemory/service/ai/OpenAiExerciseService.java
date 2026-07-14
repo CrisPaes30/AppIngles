@@ -50,15 +50,16 @@ public class OpenAiExerciseService implements AiExerciseService {
               "explanation": "..."
             }
 
-            Rules per exercise type:
-            - MULTIPLE_CHOICE: question asks for Portuguese translation, options is exactly 4 Portuguese strings (1 correct + 3 plausible distractors shuffled), correctAnswer is the correct option string.
-            - FILL_BLANK: question is a natural English sentence with ___ replacing the target word, options is null, correctAnswer is the missing word.
-            - WORD_ORDER: question is a brief instruction in Portuguese, options is an array of the individual words (shuffled) from a complete English sentence that uses the target word, correctAnswer is the full correct sentence.
-            - TRANSLATION: question asks (in Portuguese) to translate the Portuguese meaning to English, options is null, correctAnswer is the English word/phrase.
-            - TRUE_FALSE: question is an English statement about the word — sometimes true, sometimes false (vary randomly), options is ["TRUE","FALSE"], correctAnswer is "TRUE" or "FALSE".
+            Rules per exercise type — pay close attention to the language of "question" in each case,
+            it must NEVER mix Portuguese and English within the same sentence:
+            - MULTIPLE_CHOICE: question (in Portuguese) asks for the Portuguese translation of the word, options is exactly 4 Portuguese strings (1 correct + 3 plausible distractors shuffled), correctAnswer is the correct option string.
+            - FILL_BLANK: question is a complete, natural sentence ENTIRELY IN ENGLISH with ___ replacing the target word — do not translate or mix in any Portuguese word into this sentence. options is null, correctAnswer is the missing English word.
+            - WORD_ORDER: question is a brief instruction in Portuguese (e.g. "Ordene as palavras..."), options is an array of the individual words (shuffled) from a complete English sentence that uses the target word, correctAnswer is the full correct English sentence.
+            - TRANSLATION: question (in Portuguese) asks to translate the Portuguese meaning to English, options is null, correctAnswer is the English word/phrase.
+            - TRUE_FALSE: question is a complete statement ENTIRELY IN ENGLISH about the word — sometimes true, sometimes false (vary randomly), options is ["TRUE","FALSE"], correctAnswer is "TRUE" or "FALSE".
             - SENTENCE_BUILDING: question instructs (in Portuguese) to write an English sentence using the word, options is null, correctAnswer is null, explanation gives a good example sentence.
 
-            Write questions and explanations in Brazilian Portuguese. Example sentences in English.
+            Always write "explanation" in Brazilian Portuguese, regardless of exercise type.
             """;
 
     private static final String ANALYSIS_SYSTEM_PROMPT = """
