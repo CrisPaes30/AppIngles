@@ -22,10 +22,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -194,8 +196,16 @@ public class ExerciseServiceImpl implements ExerciseService {
                 .build();
     }
 
+    private static final Pattern DIACRITICS  = Pattern.compile("\\p{M}+");
+    private static final Pattern PUNCTUATION = Pattern.compile("[.,!?;:'\"“”‘’«»¿¡()\\[\\]{}]");
+
     private String normalize(String s) {
-        return s == null ? "" : s.trim().toLowerCase().replaceAll("\\s+", " ");
+        if (s == null) return "";
+        String withoutDiacritics = DIACRITICS.matcher(
+                Normalizer.normalize(s, Normalizer.Form.NFD)
+        ).replaceAll("");
+        String withoutPunctuation = PUNCTUATION.matcher(withoutDiacritics).replaceAll("");
+        return withoutPunctuation.trim().toLowerCase().replaceAll("\\s+", " ");
     }
 
     private String normalizeWords(String s) {
