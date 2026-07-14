@@ -51,6 +51,11 @@ function formatRemaining(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+function shuffleTypes(): ExerciseType[] {
+  const all = Object.keys(EXERCISE_TYPE_LABELS) as ExerciseType[]
+  return [...all].sort(() => Math.random() - 0.5)
+}
+
 // ─── Multiple choice ──────────────────────────────────────────────────────────
 
 function MultipleChoice({ options, selected, answered, correct, onSelect }: {
@@ -296,6 +301,9 @@ function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; w
   // Rotation batch (random mode only): keep the same word for 4 exercises in a row
   const [batchWordId, setBatchWordId] = useState<number | null>(null)
   const [batchCount,  setBatchCount]  = useState(0)
+  // Sequência de tipos distintos sorteada pro lote atual (só quando "Tipo aleatório"
+  // está selecionado) — evita repetir o mesmo tipo várias vezes seguidas pra mesma palavra.
+  const [batchTypeQueue, setBatchTypeQueue] = useState<ExerciseType[]>([])
 
   // Session (random + word modes): fixed duration, live stats, summary screen
   const [durationChoice,  setDurationChoice]  = useState(10)
@@ -333,6 +341,7 @@ function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; w
     setManuallyEnded(false)
     setBatchWordId(null)
     setBatchCount(0)
+    setBatchTypeQueue([])
     setExercise(null)
     setAnswer(null)
   }
@@ -347,6 +356,7 @@ function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; w
     setManuallyEnded(false)
     setBatchWordId(null)
     setBatchCount(0)
+    setBatchTypeQueue([])
     setExercise(null)
     setAnswer(null)
   }
@@ -354,19 +364,25 @@ function ExerciseEngine({ mode, wordId, wordName }: { mode: 'random' | 'word'; w
   async function generate() {
     resetState()
     try {
-      const type = (typeFilter as ExerciseType) || undefined
+      const fixedType = (typeFilter as ExerciseType) || undefined
       let ex: Exercise
       if (mode === 'random') {
         if (batchWordId == null || batchCount >= 4) {
+          // Novo lote de palavra: se o usuário não fixou um tipo específico,
+          // sorteia uma sequência de tipos distintos pra esses 4 exercícios.
+          const queue = fixedType ? [] : shuffleTypes()
+          const type = fixedType ?? queue[0]
           ex = await generateMut.mutateAsync({ type })
           setBatchWordId(ex.vocabularyWordId)
           setBatchCount(1)
+          setBatchTypeQueue(queue)
         } else {
+          const type = fixedType ?? batchTypeQueue[batchCount]
           ex = await generateMut.mutateAsync({ type, vocabularyWordId: batchWordId })
           setBatchCount((c) => c + 1)
         }
       } else {
-        ex = await generateMut.mutateAsync({ type, vocabularyWordId: wordId })
+        ex = await generateMut.mutateAsync({ type: fixedType, vocabularyWordId: wordId })
       }
       setExercise(ex)
       if (ex.type === 'WORD_ORDER' && ex.options) {
