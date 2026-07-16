@@ -13,6 +13,7 @@ import com.englishmemory.repository.*;
 import com.englishmemory.service.ExerciseService;
 import com.englishmemory.service.ai.AiExerciseService;
 import com.englishmemory.service.ai.model.GeneratedExercise;
+import com.englishmemory.service.ai.model.SentenceAnalysis;
 import com.englishmemory.service.speech.SpeechProvider;
 import com.englishmemory.util.JsonListConverter;
 import com.englishmemory.util.Sm2Algorithm;
@@ -26,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.Base64;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Pattern;
@@ -37,10 +37,10 @@ import java.util.regex.Pattern;
 @Transactional(readOnly = true)
 public class ExerciseServiceImpl implements ExerciseService {
 
-    private static final EnumSet<ExerciseType> NO_CORRECT_ANSWER = EnumSet.of(ExerciseType.SENTENCE_BUILDING);
     private static final Random RANDOM = new Random();
     private static final int WEAK_MASTERY_THRESHOLD = 40;
     private static final double WEAK_POOL_PROBABILITY = 0.8;
+    private static final int SENTENCE_BUILDING_PASS_SCORE = 70;
 
     private final ExerciseRepository        exerciseRepository;
     private final ExerciseAttemptRepository attemptRepository;
@@ -91,7 +91,27 @@ public class ExerciseServiceImpl implements ExerciseService {
         Exercise exercise = exerciseRepository.findByIdAndUserIdAndActiveTrue(exerciseId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Exercício", exerciseId));
 
-        boolean isCorrect = checkAnswer(exercise.getType(), request.getAnswer(), exercise.getCorrectAnswer());
+        boolean isCorrect;
+        String  explanation;
+
+        if (exercise.getType() == ExerciseType.SENTENCE_BUILDING) {
+            String targetWord = exercise.getVocabularyWord() != null
+                    ? exercise.getVocabularyWord().getWord() : null;
+            boolean usesTargetWord = targetWord == null
+                    || normalize(request.getAnswer()).contains(normalize(targetWord));
+
+            if (!usesTargetWord) {
+                isCorrect   = false;
+                explanation = String.format("Sua frase não usa a palavra \"%s\" — tente incluí-la.", targetWord);
+            } else {
+                SentenceAnalysis analysis = aiService.analyzeSentence(request.getAnswer(), targetWord);
+                isCorrect   = analysis.score() >= SENTENCE_BUILDING_PASS_SCORE;
+                explanation = buildSentenceBuildingExplanation(analysis, request.getAnswer());
+            }
+        } else {
+            isCorrect  = checkAnswer(exercise.getType(), request.getAnswer(), exercise.getCorrectAnswer());
+            explanation = exercise.getExplanation();
+        }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
@@ -115,7 +135,7 @@ public class ExerciseServiceImpl implements ExerciseService {
                 .isCorrect(isCorrect)
                 .userAnswer(request.getAnswer())
                 .correctAnswer(exercise.getCorrectAnswer())
-                .explanation(exercise.getExplanation())
+                .explanation(explanation)
                 .masteryLevel(masteryLevel)
                 .timeSpentSeconds(request.getTimeSpentSeconds())
                 .build();
@@ -163,10 +183,6 @@ public class ExerciseServiceImpl implements ExerciseService {
     }
 
     private boolean checkAnswer(ExerciseType type, String userAnswer, String correctAnswer) {
-        if (NO_CORRECT_ANSWER.contains(type)) {
-            return !userAnswer.isBlank();
-        }
-
         String normalizedUser    = normalize(userAnswer);
         String normalizedCorrect = normalize(correctAnswer);
 
@@ -176,6 +192,19 @@ public class ExerciseServiceImpl implements ExerciseService {
                                || normalizedCorrect.contains(normalizedUser);
             default            -> normalizedUser.equals(normalizedCorrect);
         };
+    }
+
+    // SENTENCE_BUILDING não tem correctAnswer fixo pra comparar — a IA analisa
+    // gramática/naturalidade de verdade (mesma análise já usada em "Corrigir
+    // Frase"), em vez de só checar se o campo veio não-vazio.
+    private String buildSentenceBuildingExplanation(SentenceAnalysis analysis, String userAnswer) {
+        StringBuilder sb = new StringBuilder(analysis.aiFeedback());
+        boolean hasCorrection = analysis.correctedSentence() != null
+                && !normalize(analysis.correctedSentence()).equals(normalize(userAnswer));
+        if (hasCorrection) {
+            sb.append(" Sugestão: \"").append(analysis.correctedSentence()).append("\"");
+        }
+        return sb.toString();
     }
 
     private Integer updateProgressIfWordBased(Long userId, Exercise exercise, boolean isCorrect) {

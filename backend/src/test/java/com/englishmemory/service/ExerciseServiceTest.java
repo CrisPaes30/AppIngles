@@ -14,6 +14,7 @@ import com.englishmemory.repository.UserRepository;
 import com.englishmemory.repository.VocabularyWordRepository;
 import com.englishmemory.service.ai.AiExerciseService;
 import com.englishmemory.service.ai.model.GeneratedExercise;
+import com.englishmemory.service.ai.model.SentenceAnalysis;
 import com.englishmemory.service.impl.ExerciseServiceImpl;
 import com.englishmemory.service.speech.SpeechProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -264,6 +265,87 @@ class ExerciseServiceTest {
 
             assertThat(response.getAudioDataUri()).isNull();
             verify(speechProvider, never()).synthesizeSpeech(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("answer — SENTENCE_BUILDING (validação via IA)")
+    class SentenceBuilding {
+
+        private Exercise exerciseWithTargetWord(String word) {
+            VocabularyWord vw = new VocabularyWord();
+            vw.setId(7L);
+            vw.setWord(word);
+            vw.setUser(user);
+
+            Exercise ex = Exercise.builder()
+                    .user(user)
+                    .type(ExerciseType.SENTENCE_BUILDING)
+                    .question("q")
+                    .vocabularyWord(vw)
+                    .explanation("Um exemplo de frase seria: ...")
+                    .build();
+            ex.setId(100L);
+            when(exerciseRepository.findByIdAndUserIdAndActiveTrue(100L, 1L))
+                    .thenReturn(Optional.of(ex));
+            return ex;
+        }
+
+        @Test
+        @DisplayName("frase com erro gramatical e nota baixa é marcada incorreta, mesmo usando a palavra pedida")
+        void answer_lowScoreSentence_isIncorrectDespiteUsingTargetWord() {
+            exerciseWithTargetWord("each other");
+
+            when(aiService.analyzeSentence(eq("When your meet each other"), eq("each other")))
+                    .thenReturn(new SentenceAnalysis(
+                            "When you meet each other.",
+                            "Sua frase tem um erro de gramática.",
+                            "'Your' deveria ser 'you' aqui.",
+                            List.of(), List.of(), 40));
+
+            AnswerExerciseRequest request = new AnswerExerciseRequest();
+            request.setAnswer("When your meet each other");
+
+            ExerciseAnswerResponse response = exerciseService.answer(1L, 100L, request);
+
+            assertThat(response.getIsCorrect()).isFalse();
+            assertThat(response.getExplanation()).contains("Sugestão").contains("When you meet each other.");
+        }
+
+        @Test
+        @DisplayName("frase com nota alta (erros leves) é considerada correta e ainda traz sugestão")
+        void answer_highScoreSentenceWithMinorIssue_isCorrectAndSuggestsImprovement() {
+            exerciseWithTargetWord("store");
+
+            when(aiService.analyzeSentence(eq("I go to the store yesterday"), eq("store")))
+                    .thenReturn(new SentenceAnalysis(
+                            "I went to the store yesterday.",
+                            "Muito bem! Só um pequeno deslize de tempo verbal.",
+                            "Use o passado 'went' em vez de 'go' para uma ação ontem.",
+                            List.of(), List.of(), 78));
+
+            AnswerExerciseRequest request = new AnswerExerciseRequest();
+            request.setAnswer("I go to the store yesterday");
+
+            ExerciseAnswerResponse response = exerciseService.answer(1L, 100L, request);
+
+            assertThat(response.getIsCorrect()).isTrue();
+            assertThat(response.getExplanation()).contains("Sugestão").contains("I went to the store yesterday.");
+        }
+
+        @Test
+        @DisplayName("frase que não usa a palavra pedida é incorreta sem nem chamar a análise de nota")
+        void answer_sentenceWithoutTargetWord_isIncorrect() {
+            exerciseWithTargetWord("party");
+
+            AnswerExerciseRequest request = new AnswerExerciseRequest();
+            request.setAnswer("I like ice cream");
+
+            ExerciseAnswerResponse response = exerciseService.answer(1L, 100L, request);
+
+            assertThat(response.getIsCorrect()).isFalse();
+            assertThat(response.getExplanation()).contains("party");
+            verify(aiService, never()).analyzeSentence(any(), any());
         }
     }
 }
